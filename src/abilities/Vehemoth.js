@@ -1,525 +1,511 @@
-import * as $j from 'jquery';
 import { Damage } from '../damage';
-import { Team, isTeam } from '../utility/team';
+import { Team } from '../utility/team';
 import * as matrices from '../utility/matrices';
 import * as arrayUtils from '../utility/arrayUtils';
-import { Creature } from '../creature';
 import { Effect } from '../effect';
+import { Direction } from '../utility/hex';
 
 /** Creates the abilities
- * @param {Object} G the game object
+ * @param {Game} G the game object
  * @return {void}
  */
-export default G => {
+export default (G) => {
 	G.abilities[6] = [
-		// 	First Ability: Frost Bite
+		// 	First Ability: Lamellar Body
 		{
-			//	Type : Can be "onQuery", "onStartPhase", "onDamage"
-			trigger: 'onEndPhase',
+			//  Type : Can be "onQuery", "onStartPhase", "onDamage"
+			trigger: 'onCreatureSummon onOtherCreatureSummon onOtherCreatureDeath',
 
-			// 	require() :
-			require: function() {
-				if (!this.testRequirements()) {
+			_buff: 0,
+
+			//  require() :
+			require: function () {
+				// Stop temporary and dead creatures from activating
+				if (this.creature.dead || this.creature.temp) {
 					return false;
 				}
-				return true;
-			},
-
-			//	activate() :
-			activate: function() {
-				let ability = this;
-				this.end();
-
-				//Check all creatures
-				for (let i = 1; i < G.creatures.length; i++) {
-					if (G.creatures[i] instanceof Creature) {
-						let crea = G.creatures[i];
-
-						if (
-							isTeam(crea, ability.creature, Team.enemy) &&
-							!crea.dead &&
-							crea.findEffect('Snow Storm').length === 0
-						) {
-							let effect = new Effect(
-								'Snow Storm', // Name
-								ability.creature, // Caster
-								crea, // Target
-								'onOtherCreatureDeath', // Trigger
-								{
-									effectFn: function(eff) {
-										let trg = eff.target;
-
-										let iceDemonArray = G.findCreature({
-											type: 'S7', // Ice Demon
-											dead: false, // Still Alive
-											team: [1 - trg.team % 2, 1 - trg.team % 2 + 2] // Oposite team
-										});
-
-										if (iceDemonArray.length == 0) {
-											this.deleteEffect();
-										}
-									},
-									alterations: ability.effects[0],
-									noLog: true
-								}, // Optional arguments
-								G
-							);
-							crea.addEffect(effect);
-						}
+				// Stop activation if the other creature is not a sloth type
+				var buff = 0;
+				G.creatures.forEach((crea) => {
+					if (crea.realm == 'S' && !crea.dead && !crea.temp) {
+						buff += 2;
 					}
-				}
-			}
-		},
-
-		// 	Second Ability: Head Bash
-		{
-			//	Type : Can be "onQuery","onStartPhase","onDamage"
-			trigger: 'onQuery',
-
-			distance: 1,
-			_targetTeam: Team.enemy,
-
-			// 	require() :
-			require: function() {
-				if (!this.testRequirements()) {
+				});
+				if (buff == this._buff) {
 					return false;
 				}
-				if (
-					!this.testDirection({
-						team: this._targetTeam,
-						distance: this.distance,
-						sourceCreature: this.creature
-					})
-				) {
-					return false;
-				}
+				this._buff = buff;
 				return true;
 			},
 
-			// 	query() :
-			query: function() {
-				let ability = this;
-				let crea = this.creature;
+			//  activate() :
+			activate: function () {
+				const ability = this;
+				// Force Vehemoth to stay facing the right way
+				this.creature.facePlayerDefault();
 
-				G.grid.queryDirection({
-					fnOnConfirm: function() {
-						ability.animation(...arguments);
-					},
-					flipped: crea.player.flipped,
-					team: this._targetTeam,
-					id: this.creature.id,
-					requireCreature: true,
-					x: crea.x,
-					y: crea.y,
-					distance: this.distance,
-					sourceCreature: crea
-				});
-			},
-
-			//	activate() :
-			activate: function(path) {
-				let ability = this;
-				ability.end();
-
-				let direction = arrayUtils.last(path).direction;
-				let target = arrayUtils.last(path).creature;
-
-				let dir = [];
-				switch (direction) {
-					case 0: //Upright
-						dir = G.grid
-							.getHexMap(target.x, target.y - 8, 0, target.flipped, matrices.diagonalup)
-							.reverse();
-						break;
-					case 1: //StraitForward
-						dir = G.grid.getHexMap(target.x, target.y, 0, target.flipped, matrices.straitrow);
-						break;
-					case 2: //Downright
-						dir = G.grid.getHexMap(target.x, target.y, 0, target.flipped, matrices.diagonaldown);
-						break;
-					case 3: //Downleft
-						dir = G.grid.getHexMap(target.x, target.y, -4, target.flipped, matrices.diagonalup);
-						break;
-					case 4: //StraitBackward
-						dir = G.grid.getHexMap(target.x, target.y, 0, !target.flipped, matrices.straitrow);
-						break;
-					case 5: //Upleft
-						dir = G.grid
-							.getHexMap(target.x, target.y - 8, -4, target.flipped, matrices.diagonaldown)
-							.reverse();
-						break;
-					default:
-						break;
+				var regrowBuff = 0;
+				if (this.isUpgraded()) {
+					regrowBuff = this._buff;
 				}
 
-				let pushed = false;
-
-				if (dir.length > 1) {
-					if (dir[1].isWalkable(target.size, target.id, true)) {
-						target.moveTo(dir[1], {
-							ignoreMovementPoint: true,
-							ignorePath: true,
-							callback: function() {
-								G.activeCreature.queryMove();
+				this.creature.replaceEffect(
+					// Add and replace the effect each time
+					new Effect(
+						'Lamellar Body', // name
+						this.creature, // caster
+						this.creature, // target
+						'', // trigger
+						{
+							alterations: {
+								defense: this._buff,
+								frost: this._buff,
+								regrowth: regrowBuff,
 							},
-							animation: 'push'
-						});
-						pushed = true;
-					}
-				}
-				let d = $j.extend({}, ability.damages);
-
-				if (!pushed) {
-					d.crush = d.crush * 2;
-				}
-
-				let damage = new Damage(
-					ability.creature, //Attacker
-					d, // Damage Type
-					1, // Area
-					[], // Effects
-					G
+							stackable: false,
+						},
+						G,
+					),
 				);
-				target.takeDamage(damage);
-			}
+			},
 		},
 
-		// 	Thirt Ability: Snow Storm
+		// 	Second Ability: Flat Frons
 		{
 			//	Type : Can be "onQuery","onStartPhase","onDamage"
 			trigger: 'onQuery',
 
-			_targetTeam: Team.enemy,
+			_directions: [0, 1, 0, 0, 1, 0], // forward/backward
+			_targetTeam: Team.Enemy,
+
+			/**
+			 * If the target creature's health <= this value, it can be instantly killed.
+			 */
+			_executeHealthThreshold: 49,
 
 			// 	require() :
-			require: function() {
+			require: function () {
 				if (!this.testRequirements()) {
 					return false;
 				}
 
-				let straitrow = matrices.straitrow;
-				let bellowrow = matrices.bellowrow;
-
-				let crea = this.creature;
-				let hexes = arrayUtils
-					.filterCreature(
-						G.grid.getHexMap(crea.x + 2, crea.y - 2, 0, false, straitrow),
-						true,
-						true,
-						crea.id,
-						crea.team
-					)
-					.concat(
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x + 1, crea.y - 2, 0, false, bellowrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x, crea.y, 0, false, straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x + 1, crea.y, 0, false, bellowrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x + 2, crea.y + 2, 0, false, straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x - 2, crea.y - 2, 2, true, straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x - 1, crea.y - 2, 2, true, bellowrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x, crea.y, 2, true, straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x - 1, crea.y, 2, true, bellowrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						),
-						arrayUtils.filterCreature(
-							G.grid.getHexMap(crea.x - 2, crea.y + 2, 2, true, straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						)
-					);
-
 				if (
-					!this.atLeastOneTarget(hexes, {
-						team: this._targetTeam
+					!this.atLeastOneTarget(this._getHexes(), {
+						team: this._targetTeam,
 					})
 				) {
-					return false;
-				}
-
-				return true;
-			},
-
-			// 	query() :
-			query: function() {
-				let ability = this;
-				let crea = this.creature;
-
-				let choices = [
-					//Front
-					arrayUtils
-						.filterCreature(
-							G.grid.getHexMap(crea.x + 2, crea.y - 2, 0, false, matrices.straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						)
-						.concat(
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x + 1, crea.y - 2, 0, false, matrices.bellowrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x, crea.y, 0, false, matrices.straitrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x + 1, crea.y, 0, false, matrices.bellowrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x + 2, crea.y + 2, 0, false, matrices.straitrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							)
-						),
-					//Behind
-					arrayUtils
-						.filterCreature(
-							G.grid.getHexMap(crea.x - 2, crea.y - 2, 2, true, matrices.straitrow),
-							true,
-							true,
-							crea.id,
-							crea.team
-						)
-						.concat(
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x - 1, crea.y - 2, 2, true, matrices.bellowrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x, crea.y, 2, true, matrices.straitrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x - 1, crea.y, 2, true, matrices.bellowrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							),
-							arrayUtils.filterCreature(
-								G.grid.getHexMap(crea.x - 2, crea.y + 2, 2, true, matrices.straitrow),
-								true,
-								true,
-								crea.id,
-								crea.team
-							)
-						)
-				];
-
-				G.grid.queryChoice({
-					fnOnConfirm: function() {
-						ability.animation(...arguments);
-					}, //fnOnConfirm
-					team: this._targetTeam,
-					requireCreature: 1,
-					id: crea.id,
-					flipped: crea.flipped,
-					choices: choices
-				});
-			},
-
-			//	activate() :
-			activate: function(choice) {
-				let ability = this;
-
-				let creaturesHit = [];
-
-				for (let i = 0; i < choice.length; i++) {
-					if (
-						choice[i].creature instanceof Creature &&
-						creaturesHit.indexOf(choice[i].creature) == -1
-					) {
-						// Prevent Multiple Hit
-
-						choice[i].creature.takeDamage(
-							new Damage(
-								ability.creature, // Attacker
-								ability.damages1, // Damage Type
-								1, // Area
-								[], // Effects
-								G
-							)
-						);
-
-						creaturesHit.push(choice[i].creature);
+					if (this.isUpgraded()) {
+						if (
+							!this.testDirection({
+								team: this._targetTeam,
+								directions: this._directions,
+								distance: this.creature.remainingMove + 1,
+								sourceCreature: this.creature,
+							})
+						) {
+							return false;
+						}
+					} else {
+						return false;
 					}
 				}
-			}
-		},
 
-		// 	Fourth Ability: Frozen Orb
-		{
-			//	Type : Can be "onQuery"," onStartPhase", "onDamage"
-			trigger: 'onQuery',
-
-			directions: [0, 1, 0, 0, 1, 0],
-			_targetTeam: Team.enemy,
-
-			// 	require() :
-			require: function() {
-				if (!this.testRequirements()) {
-					return false;
-				}
-				if (
-					!this.testDirection({
-						team: this._targetTeam,
-						directions: this.directions,
-						sourceCreature: this.creature
-					})
-				) {
-					return false;
-				}
 				return true;
 			},
 
 			// 	query() :
-			query: function() {
-				let ability = this;
-				let crea = this.creature;
+			query: function () {
+				const ability = this;
+				const vehemoth = this.creature;
 
-				G.grid.queryDirection({
-					fnOnSelect: function(path) {
-						let trg = arrayUtils.last(path).creature;
-
-						let hex = ability.creature.player.flipped
-							? G.grid.hexes[arrayUtils.last(path).y][arrayUtils.last(path).x + trg.size - 1]
-							: arrayUtils.last(path);
-
-						hex
-							.adjacentHex(ability.radius)
-							.concat([hex])
-							.forEach(function(item) {
-								if (item.creature instanceof Creature) {
-									item.overlayVisualState('creature selected player' + item.creature.team);
-								} else {
-									item.overlayVisualState('creature selected player' + G.activeCreature.team);
-								}
-							});
-					},
-					fnOnConfirm: function() {
+				const object = {
+					fnOnConfirm: function () {
 						ability.animation(...arguments);
 					},
-					flipped: crea.player.flipped,
-					team: this._targetTeam,
-					id: this.creature.id,
+					flipped: vehemoth.player.flipped,
+					id: vehemoth.id,
+					team: Team.Enemy,
 					requireCreature: true,
-					x: crea.x,
-					y: crea.y,
-					sourceCreature: crea
-				});
+				};
+
+				object.choices = this._getHexes().map((hex) => [hex]);
+
+				if (this.isUpgraded()) {
+					const directionObject = G.grid.getDirectionChoices({
+						flipped: vehemoth.player.flipped,
+						team: this._targetTeam,
+						requireCreature: true,
+						stopOnCreature: true,
+						sourceCreature: vehemoth,
+						id: vehemoth.id,
+						x: vehemoth.x,
+						y: vehemoth.y,
+						directions: this._directions,
+						distance: vehemoth.remainingMove + 1,
+					});
+
+					// Removes duplicates between nearby and inline targets
+					object.choices = object.choices.filter(
+						(objectHexes) =>
+							!directionObject.choices.some((directionHexes) =>
+								objectHexes.every((v) => directionHexes.includes(v)),
+							),
+					);
+					object.choices = [...object.choices, ...directionObject.choices];
+				}
+
+				G.grid.queryChoice(object);
 			},
 
 			//	activate() :
-			activate: function(path) {
-				let ability = this;
+			activate: function (path, args) {
+				const ability = this;
+				const vehemoth = ability.creature;
+				G.Phaser.camera.shake(0.02, 333, true, G.Phaser.camera.SHAKE_HORIZONTAL, true);
+
 				ability.end();
 
-				let trg = arrayUtils.last(path).creature;
+				path = arrayUtils.sortByDirection(path, args.direction);
+				const target = arrayUtils.last(path).creature;
+				const targetIsNearby = this._getHexes().some((hex) => hex.creature?.id === target.id);
 
-				let hex = ability.creature.player.flipped
-					? G.grid.hexes[arrayUtils.last(path).y][arrayUtils.last(path).x + trg.size - 1]
-					: arrayUtils.last(path);
+				if (targetIsNearby) {
+					ability._damageTarget(target);
+				} else {
+					// Charge to target.
+					arrayUtils.filterCreature(path, false, true, vehemoth.id);
+					let destination = arrayUtils.last(path);
+					const x = destination.x + (args.direction === 4 ? vehemoth.size - 1 : 0);
+					destination = G.grid.hexes[destination.y][x];
 
-				let trgs = ability.getTargets(hex.adjacentHex(ability.radius).concat([hex])); // Include central hex
+					/* Calculate hexes the target could be pushed along. Limited by the number
+					of hexes the Vehemoth charged, and will stop when reaching obstacles. */
+					let knockbackHexes = G.grid.getHexLine(target.x, target.y, args.direction);
+					arrayUtils.filterCreature(knockbackHexes, false, true, target.id);
+					knockbackHexes = knockbackHexes.slice(0, path.length);
 
-				// var target = arrayUtils.last(path).creature;
+					vehemoth.moveTo(destination, {
+						overrideSpeed: 100,
+						callback: function () {
+							let knockbackHex = arrayUtils.last(knockbackHexes);
 
-				// var damage = new Damage(
-				// 	ability.creature, //Attacker
-				// 	ability.damages, //Damage Type
-				// 	1, //Area
-				// 	[]	//Effects
-				// );
-				// target.takeDamage(damage);
+							/* Damage before knockback any other creature movement to handle dead
+							targets, Snow Bunny hop incorrectly avoiding damage, etc. */
+							const damageResult = ability._damageTarget(target);
 
-				let effect = new Effect(
-					'Frozen', // Name
-					ability.creature, // Caster
-					undefined, // Target
-					'', // Trigger
-					{
-						effectFn: function(eff) {
-							eff.target.stats.frozen = true;
-							this.deleteEffect();
-						}
+							if (damageResult.kill) {
+								return;
+							}
+
+							if (knockbackHex) {
+								// If pushing left, account for the difference in x origin of flipped creatures.
+								if (args.direction === Direction.Left) {
+									knockbackHex =
+										knockbackHex && G.grid.hexes[knockbackHex.y][knockbackHex.x + target.size - 1];
+								}
+
+								target.moveTo(knockbackHex, {
+									callback: function () {
+										G.activeCreature.queryMove();
+									},
+									ignoreMovementPoint: true,
+									ignorePath: true,
+									animation: 'push',
+								});
+							} else {
+								G.activeCreature.queryMove();
+							}
+						},
+					});
+				}
+			},
+
+			/**
+			 * Calculate the damage done with the ability and potentially execute the
+			 * target if under a certain health threshold.
+			 *
+			 * @param {Creature} target Target for the ability.
+			 * @returns {object} @see creature.takeDamage()
+			 */
+			_damageTarget(target) {
+				const ability = this;
+				const shouldExecute = target.health <= ability._executeHealthThreshold && target.isFrozen();
+				const damageType = shouldExecute
+					? { pure: target.health }
+					: { crush: this.damages.crush, frost: this.damages.frost };
+				const damage = new Damage(ability.creature, damageType, 1, [], G);
+				let damageResult;
+
+				if (shouldExecute) {
+					/* Suppress the death message, to be replaced by a custom log. Setting
+						`noLog` on Damage wouldn't work as it would suppress Shielded/Dodged messages. */
+					this.game.UI.chat.suppressMessage(/is dead/i, 1);
+					damageResult = target.takeDamage(damage);
+
+					// Damage could be shielded or blocked, so double check target has died.
+					if (damageResult.kill) {
+						this.game.log(`%CreatureName${target.id}% has been shattered!`);
+						target.hint('Shattered', 'damage');
+					}
+				} else {
+					damageResult = target.takeDamage(damage);
+				}
+
+				return damageResult;
+			},
+
+			/**
+			 * The area of effect is the front and back 3 hexes for a total of 6 hexes.
+			 *
+			 * @returns {Hex[]} Refer to Creature.getHexMap()
+			 */
+			_getHexes() {
+				return this.creature.getHexMap(matrices.frontnback3hex);
+			},
+		},
+
+		/**
+		 * Primary Ability: Flake Convertor
+		 *
+		 * Inline ranged attack on a fatigued enemy unit within 5 range. Deals damage
+		 * equal to the positive Frost mastery difference between Vehemoth and the target,
+		 * who also receives the "Frozen" status.
+		 *
+		 * When upgraded, the "Frozen" status becomes "Cryostasis" which is a special
+		 * "Freeze" that is not broken when receiving damage.
+		 *
+		 * Targeting rules:
+		 * - The target must be an enemy unit.
+		 * - The target must have the "Fatigued" status (no remaining endurance).
+		 * - The target must be inline (forwards or backwards) within 5 range.
+		 * - The path to the target unit cannot be interrupted by any obstacles or units.
+		 *
+		 * Other rules:
+		 * - Attacked unit receives the "Frozen" status, making them skip their next turn.
+		 * - There is no cap to the damage dealt from the positive Frost mastery difference.
+		 * - Attack damage will be 0 if the target has a higher Frost mastery than Vehemoth,
+		 *   but the "Frozen"/"Cryostasis" effect will still be applied.
+		 * - The upgraded "Cryostasis" effect does not break when receiving damage from
+		 *   the Vehemoth or ANY other source.
+		 */
+		{
+			trigger: 'onQuery',
+
+			_targetTeam: Team.Enemy,
+			_directions: [1, 1, 1, 1, 1, 1],
+			_distance: 5,
+
+			require: function () {
+				if (!this.testRequirements()) {
+					return false;
+				}
+
+				if (
+					!this.testDirection({
+						sourceCreature: this.creature,
+						team: this._targetTeam,
+						directions: this._directions,
+						distance: this._distance,
+						optTest: this._confirmTarget,
+					})
+				) {
+					return false;
+				}
+
+				return true;
+			},
+
+			query: function () {
+				const ability = this;
+				const vehemoth = this.creature;
+
+				G.grid.queryDirection({
+					fnOnConfirm: function () {
+						ability.animation(...arguments);
 					},
-					G
+					flipped: vehemoth.player.flipped,
+					team: this._targetTeam,
+					id: vehemoth.id,
+					requireCreature: true,
+					x: vehemoth.x,
+					y: vehemoth.y,
+					directions: this._directions,
+					distance: this._distance,
+					optTest: this._confirmTarget,
+				});
+			},
+
+			activate: function (path, args) {
+				const ability = this;
+				const vehemoth = this.creature;
+				const target = arrayUtils.last(path).creature;
+
+				ability.end();
+				G.Phaser.camera.shake(0.01, 50, true, G.Phaser.camera.SHAKE_HORIZONTAL, true);
+
+				const [tween, sprite] = G.animations.projectile(
+					this,
+					target,
+					'effects_freezing-spit',
+					path,
+					args,
+					52,
+					-20,
 				);
 
-				ability.areaDamage(
+				const frostMasteryDifference = Math.max(vehemoth.stats.frost - target.stats.frost, 0);
+				const damage = new Damage(
 					ability.creature,
-					ability.damages,
-					[effect], // Effects
-					trgs
+					{
+						frost: frostMasteryDifference,
+					},
+					1,
+					[],
+					G,
 				);
-			}
-		}
+
+				tween.onComplete.add(function () {
+					// `this` refers to the animation object, _not_ the ability.
+					this.destroy();
+
+					let damageResult;
+					if (damage.damages.frost > 0) {
+						damageResult = target.takeDamage(damage);
+					}
+
+					target.freeze(ability.isUpgraded());
+
+					if (damageResult && !damageResult.kill) {
+						G.log(
+							`%CreatureName${target.id}% ${
+								ability.isUpgraded() ? 'enters Cryostasis' : 'has been Frozen'
+							} and cannot act`,
+						);
+						target.hint(ability.isUpgraded() ? 'Cryostasis' : 'Frozen', 'damage');
+					}
+				}, sprite); // End tween.onComplete
+			},
+
+			/**
+			 * Test a potential target enemy unit's state to determine if it can be targeted.
+			 *
+			 * @param {Creature} creature Enemy unit creature that could be targeted.
+			 * @returns {boolean} Does the unit meet the targeting requirements?
+			 */
+			_confirmTarget(creature) {
+				return creature.isFatigued();
+			},
+		},
+
+		/**
+		 * Ultimate Ability: Falling Arrow
+		 *
+		 * Attack a single enemy unit within a 4 range cone (forwards or backwards),
+		 * regardless of line of sight. Deals bonus damage based on the positive level
+		 * difference between Vehemoth and the target.
+		 *
+		 * When upgraded, even more bonus damage is added to a positive level difference.
+		 *
+		 * Targeting rules:
+		 * - The target must be a single enemy unit.
+		 * - The target can be selected from any valid target within a 4 range front
+		 *   or backwards cone:
+		 *   ⬡⬢⬡⬡⬡⬡⬡⬡⬡⬡⬢⬡
+		 *   ⬡⬢⬢⬡⬡⬡⬡⬡⬡⬢⬢⬡
+		 *   ⬡⬢⬢⬢⬡⬡⬡⬡⬢⬢⬢⬡
+		 *   ⬡⬢⬢⬢⬢⬡⬡⬢⬢⬢⬢⬡
+		 *   ⬢⬢⬢⬢🥶🥶🥶⬢⬢⬢⬢
+		 *   ⬡⬢⬢⬢⬢⬡⬡⬢⬢⬢⬢⬡
+		 *   ⬡⬢⬢⬢⬡⬡⬡⬡⬢⬢⬢⬡
+		 *   ⬡⬢⬢⬡⬡⬡⬡⬡⬡⬢⬢⬡
+		 *   ⬡⬢⬡⬡⬡⬡⬡⬡⬡⬡⬢⬡
+		 * - The path to the target unit will not be interrupted by obstacles.
+		 *
+		 * Other rules:
+		 * - Bonus damage is +3 frost per level difference.
+		 * - Upgraded ability bonus damage is an additional +2 pierce per level difference.
+		 * - Bonus damage will be 0 if the target has a higher level than Vehemoth,
+		 *   it does not become a negative bonus.
+		 */
+		{
+			trigger: 'onQuery',
+
+			_directions: [0, 1, 0, 0, 1, 0],
+			_targetTeam: Team.Enemy,
+
+			require: function () {
+				const vehemoth = this.creature;
+
+				if (!this.testRequirements()) {
+					return false;
+				}
+
+				if (
+					!this.atLeastOneTarget(this._getHexes(), {
+						team: this._targetTeam,
+					})
+				) {
+					return false;
+				}
+
+				return true;
+			},
+
+			query: function () {
+				const ability = this;
+				const vehemoth = this.creature;
+
+				this.game.grid.queryCreature({
+					fnOnConfirm: function () {
+						ability.animation(...arguments);
+					},
+					team: this._targetTeam,
+					id: vehemoth.id,
+					flipped: vehemoth.player.flipped,
+					hexes: this._getHexes(),
+				});
+			},
+
+			activate: function (target) {
+				const ability = this;
+				const vehemoth = this.creature;
+
+				ability.end();
+				G.Phaser.camera.shake(0.02, 123, true, G.Phaser.camera.SHAKE_VERTICAL, true);
+
+				const levelDifference = Math.max(vehemoth.level - target.level, 0);
+				const damages = {
+					...ability.damages,
+					frost: ability.damages.frost + levelDifference * ability.bonus_damages.frost,
+					pierce:
+						ability.damages.pierce +
+						(ability.isUpgraded() ? levelDifference * ability.bonus_damages.pierce : 0),
+				};
+				const damage = new Damage(vehemoth, damages, 1, [], G);
+				target.takeDamage(damage);
+			},
+
+			/**
+			 * The area of effect is a front and back 4 distance cone originating from
+			 * the head of the Vehemoth. @see ability description for more details.
+			 *
+			 * @returns {Hex[]} Refer to HexGrid.getHexMap()
+			 */
+			_getHexes() {
+				const vehemoth = this.creature;
+
+				return [
+					...G.grid.getHexMap(
+						vehemoth.x,
+						// Unsure why the y offset is incorrect when flipping the matrix.
+						vehemoth.y - 4,
+						2,
+						true,
+						matrices.fourDistanceCone,
+					),
+					...this.creature.getHexMap(matrices.fourDistanceCone),
+				];
+			},
+		},
 	];
 };

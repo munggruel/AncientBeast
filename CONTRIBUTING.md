@@ -5,7 +5,7 @@ You can help out the project by just ★ starring this repository from the upper
 ## Getting Started
 
 It's very easy to set-up a local server in order to test and contribute to the development version of this game project.  
-It uses web languages like HTML, CSS, Javascript and Node.js. The game engine used is free open source, [Phaser](http://phaser.io).
+It uses web languages like HTML, CSS, Javascript and Node.js. The game engine used is free open source, [Phaser](https://phaser.io).
 Nowadays you can skip setting up a local server and just start developing on the project right away: [![Open in Gitpod](https://img.shields.io/badge/setup-automated-blue?logo=gitpod)](https://gitpod.io/#https://github.com/FreezingMoon/AncientBeast)
 
 ### Recommended Tool
@@ -26,7 +26,7 @@ In [VSC](https://code.visualstudio.com/download) you can press `Ctrl + Shift + P
 
 ### Package Requirements
 
-First install (or make sure you have) the latest LTS version of [Node.js](http://nodejs.org). In case you need to have different versions of it for other projects as well, you should definitely use `nvm` (Node version manager), which is a tool that makes it easy to manage multiple local Node installations. You can [find installation instructions here](https://github.com/nvm-sh/nvm#install--update-script), and then use it like:
+First install (or make sure you have) the latest LTS version of [Node.js](https://nodejs.org). In case you need to have different versions of it for other projects as well, you should definitely use `nvm` (Node version manager), which is a tool that makes it easy to manage multiple local Node installations. You can [find installation instructions here](https://github.com/nvm-sh/nvm#install--update-script), and then use it like:
 
 ```sh
 nvm install --lts  # This will always install the latest LTS release.
@@ -47,6 +47,14 @@ npm install
 This will read `package.json` and install all of the gameplay established npm package dependencies.  
 The `npm install` command will also update any required dependencies if the `package.json` file changes. If you have not worked on the project in a while, make sure you update your fork and also run that command again, which will also compile the project, same as the `npm run build:dev` command.
 
+### Setup environment variables
+
+If you want to customize your local setup, duplicate existing `.env.example` file as `.env`, adjust it as you want and that file will become default.
+
+```sh
+cp .env.example .env
+```
+
 ### Compile Project
 
 In order to build the development version of the game (also done by `npm install`), run the following command:
@@ -55,7 +63,21 @@ In order to build the development version of the game (also done by `npm install
 npm run build:dev
 ```
 
-If you receive errors about the manifest or assets loading, try running `npm run assetLister` to create a list for the app.
+### Docker Setup
+
+As an alternative way of running the project, make sure you have Docker installed, then build the image using the following command:
+
+```
+docker build -t yourusername/ancient-beast .
+```
+
+To run the image, use this command:
+
+```
+docker run -p80 yourusername/ancient-beast
+```
+
+If there's something already running on port 80 or it's being blocked, try the next port.
 
 ### Beta Testing
 
@@ -88,6 +110,17 @@ If you encounter any problems with this version, you can report them to our [Git
 Very often, it will be very helpful for debugging purposes to fetch game logs when encountering issues. You can use the `AB.getLog()` function from the browser console window in order to fetch the current match log.
 In order to open up Google Chrome browser's console, you can press `Ctrl + Shift + J`. To replay a match, you'll have to be in the pre-match screen, paste its log in the console and then press the `Return` key.
 
+### Meta Powers
+
+The Meta Powers screen can also be useful for achieving the correct game state to test features and reproduce bugs.
+
+To access the Meta Powers screen:
+
+- Run the local development server.
+- Start a hotseat (single player) game.
+- When the game starts, press the Meta + Alt + P key combination.
+- Hovering each power shows a tooltip description.
+
 ### Patch Game
 
 The main coding language used is Javascript, feel free to create patches and propose them by making a Pull Request.
@@ -107,12 +140,36 @@ localhost:8080
 
 Keep in mind that you'll have to refresh the webpage after making changes. Make sure to disable browser caching by using `Ctrl + Shift + J`, then going to the **Network** tab and checking **Disable cache**.
 
+### Unit Tests
+
+Each unit ability should have an unit test using our framework of choice, Jest, which can be written following the examples from [official documentation](https://jestjs.io/docs/getting-started).
+Our project's installed linter and the checks run on GitHub require that the Jest module values be imported explicitly:
+
+```
+import { expect, describe, test } from '@jest/globals';
+```
+
+See `/src/__tests__/utility/string.js` for an example.
+
+#### Running Tests
+
+The test runner was added to the existing `npm run test`.
+
+In addition, the following commands were added to `package.json`:
+
+- `npm run jest` – Run tests
+- `npm run start:jest` – Watch test files and rerun when modified
+
 ### Next Step
 
-You are free to browse [existing issues](https://github.com/FreezingMoon/AncientBeast/issues) and comment on the ones that you want to take a swing at in order to make sure the issue is still relevant and that nobody else is working on it. You can also drop by the project's [Discord server](https://discord.gg/x78rKen) and mention your skills and that you're interested in helping out; you'll be assigned to a specific issue. When you're done, simply create a **Pull Request**. Note that you might need to pull in from master repository before doing so. Your patches will get reviewed and tested, if there are issues with them, you'll receive feedback in order to make corrections. Otherwise, your pull request will get approved and merged into the master branch and you'll be credited for your work.
+You are free to browse [existing issues](https://github.com/FreezingMoon/AncientBeast/issues) (for beginner coders there are issues labeled as [easy](https://github.com/FreezingMoon/AncientBeast/issues?q=is%3Aopen+is%3Aissue+label%3Aeasy)) and comment on the ones that you want to take a swing at in order to make sure the issue is still relevant and that nobody else is working on it. You can also drop by the project's [Discord server](https://discord.gg/x78rKen) and mention your skills and that you're interested in helping out; you'll be assigned to a specific issue. When you're done, simply create a **Pull Request**. Note that you might need to pull in from master repository before doing so. Your patches will get reviewed and tested, if there are issues with them, you'll receive feedback in order to make corrections. Otherwise, your pull request will get approved and merged into the master branch and you'll get credited for it.
+
+#### Token Bounties
+
+Many of the issues and open tasks have bounties specified in the title, for example: `[bounty: 5 XTR]`, indicating the amount of [XatteR](https://github.com/FreezingMoon/AncientBeast/wiki/Token) that will be given to the person that solves the issue(s). You can read more about our utility token in our detailed wiki article [over here](https://github.com/FreezingMoon/AncientBeast/wiki/Token).
 
 ---
 
 ## More Ways
 
-Coding is not the only thing required in order to make this project as awesome as possible, see [How to Contribute](http://ancientbeast.com/contribute) guide.
+Coding is not the only thing required in order to make this project as awesome as possible, see [How to Contribute](https://ancientbeast.com/contribute) guide.

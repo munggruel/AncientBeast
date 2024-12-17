@@ -1,33 +1,63 @@
 import * as $j from 'jquery';
-// Unused for now
-// import * as time from '../utility/time';
 import * as str from '../utility/string';
 
 export class Chat {
-	/* Constructor
-	 *
+	/**
 	 * Chat/Log Functions
-	 *
+	 * @constructor
 	 */
 	constructor(game) {
 		this.game = game;
 		this.$chat = $j('#chat');
 		this.$content = $j('#chatcontent');
-		this.$chat.bind('click', () => {
-			game.UI.chat.toggle();
+		this.$chat.on('click', () => {
+			this.toggle();
 		});
-		this.$chat.bind('mouseenter', () => {
-			game.UI.chat.peekOpen();
+		this.$chat.on(
+			setTimeout(() => {
+				this.toggle();
+			}, 2000),
+		);
+		this.$chat.on(
+			setTimeout(() => {
+				this.toggle();
+			}, 5000),
+		);
+		this.$chat.on('mouseenter', () => {
+			this.peekOpen();
 		});
-		this.$chat.bind('mouseleave', () => {
-			game.UI.chat.peekClose();
+		this.$chat.on('mouseleave', () => {
+			this.peekClose();
 		});
+
 		this.messages = [];
 		this.isOpen = false;
+		this.messagesToSuppress = [];
 
-		$j('#combatwrapper, #toppanel, #dash, #endscreen').bind('click', () => {
-			game.UI.chat.hide();
+		$j('#combatwrapper, #toppanel, #dash, #endscreen').on('click', () => {
+			this.hide();
 		});
+
+		// Events
+		this.game.signals.ui.add(this._handleUiEvent, this);
+	}
+
+	/**
+	 * Handle events on the "ui" channel.
+	 *
+	 * @param {string} message Event name.
+	 * @param {object} payload Event payload.
+	 */
+	_handleUiEvent(message, payload) {
+		if (
+			message === 'toggleDash' ||
+			message === 'toggleScore' ||
+			message === 'toggleMusicPlayer' ||
+			message === 'toggleMetaPowers' ||
+			message === 'closeInterfaceScreens'
+		) {
+			this.hide();
+		}
 	}
 
 	show() {
@@ -64,7 +94,7 @@ export class Chat {
 	}
 
 	getCurrentTime() {
-		let currentTime = new Date(new Date() - this.game.startMatchTime);
+		const currentTime = new Date(new Date() - this.game.startMatchTime);
 		return (
 			str.zfill(currentTime.getUTCHours(), 2) +
 			':' +
@@ -75,7 +105,7 @@ export class Chat {
 	}
 
 	createHTMLTemplate(msg, amount, msgTime = null, ifOuter = true, htmlClass = '') {
-		let timeTemplate = msgTime ? '<i>' + msgTime + '</i> ' : '',
+		const timeTemplate = msgTime ? '<i>' + msgTime + '</i> ' : '',
 			amountTemplate = amount > 1 ? ' [ ' + amount + 'x ]' : '';
 
 		if (ifOuter) {
@@ -86,16 +116,30 @@ export class Chat {
 	}
 
 	addMsg(msg, htmlClass, ifNoTimestamp = false) {
-		let messagesNo = this.messages.length;
-		let currentTime = ifNoTimestamp ? null : this.getCurrentTime();
+		const messagesNo = this.messages.length;
+		const currentTime = ifNoTimestamp ? null : this.getCurrentTime();
+
+		const suppressedMessageIndex = this.messagesToSuppress.findIndex((message) =>
+			message.pattern.test(msg),
+		);
+		if (suppressedMessageIndex > -1) {
+			const message = this.messagesToSuppress[suppressedMessageIndex];
+			message.times = message.times - 1;
+
+			if (message.times <= 0) {
+				this.messagesToSuppress.splice(suppressedMessageIndex, 1);
+			}
+
+			return;
+		}
 
 		// Check if the last message was the same as the current one
 		if (this.messages[messagesNo - 1] && this.messages[messagesNo - 1].message === msg) {
-			let lastMessage = this.messages[messagesNo - 1];
+			const lastMessage = this.messages[messagesNo - 1];
 			lastMessage.amount++;
 			lastMessage.time = currentTime;
 			$j(lastMessage.DOMObject).html(
-				this.createHTMLTemplate(msg, lastMessage.amount, currentTime, false)
+				this.createHTMLTemplate(msg, lastMessage.amount, currentTime, false),
 			);
 		} else {
 			this.messages.push({
@@ -103,7 +147,7 @@ export class Chat {
 				amount: 1,
 				time: currentTime,
 				class: htmlClass,
-				DOMObject: $j.parseHTML(this.createHTMLTemplate(msg, 1, currentTime, true, htmlClass))
+				DOMObject: $j.parseHTML(this.createHTMLTemplate(msg, 1, currentTime, true, htmlClass)),
 			});
 
 			// Append the last message's DOM object
@@ -111,5 +155,18 @@ export class Chat {
 		}
 
 		this.$content.parent().scrollTop(this.$content.height());
+	}
+
+	/**
+	 * Suppress a message from being output to the chat log.
+	 *
+	 * @param {RegExp} pattern If the chat log message matches this pattern, it will be suppressed.
+	 * @param {number} times Suppress the message this many times.
+	 */
+	suppressMessage(pattern, times = 1) {
+		this.messagesToSuppress.push({
+			pattern,
+			times,
+		});
 	}
 }

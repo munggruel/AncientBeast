@@ -1,8 +1,12 @@
 ### Ancient Beast ###
 # Generated files
 deploy/
-# List of assets
-src/assets.js
+
+# Generated list of assets
+assets/index.js
+
+# Dotenv
+.env
 
 # DS_STORE FILES
 .DS_Store
@@ -26,7 +30,7 @@ coverage
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons (http://nodejs.org/api/addons.html)
+# Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
 # Dependency directory

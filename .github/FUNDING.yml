@@ -1,8 +1,4 @@
 # These are supported funding model platforms
 
-patreon: FreezingMoon
-open_collective: ancientbeast
-ko_fi: dreadknight
-community_bridge: # Replace with a single Community Bridge project-name e.g., cloud-foundry
-issuehunt: FreezingMoon/AncientBeast
-custom: https://ancientbeast.com/contribute/#donate
+open_collective: AncientBeast
+custom: [giveth.io/project/ancient-beast, mintme.com/token/XatteR, q-acc.giveth.io/project/ancient-beast]
